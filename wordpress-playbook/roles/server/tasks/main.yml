@@ -6,22 +6,27 @@
       name: "*"
       state: latest
 
-- name: Install required software
+- name: Install httpd
   yum: 
     name: httpd
     state: latest
 
-- name: Install required software
+- name: Install php
   yum: 
     name: php
     state: latest
     
-- name: Install required software
+- name: Install php-mysql
   yum: 
     name: php-mysql
     state: latest    
 
-- name: Install required software
+- name: Install mysql-server
   yum: 
     name: mysql-server
+    state: latest
+    
+- name: Install MSQL-python27 software
+  yum: 
+    name: MySQL-python27
     state: latest
