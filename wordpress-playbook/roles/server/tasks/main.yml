@@ -5,12 +5,23 @@
     yum:
       name: "*"
       state: latest
-      become: yes
 
 - name: Install required software
-  yum: name={{ item }} state=present
-  become: yes
-  with_items:
-    - httpd
-    - php php-mysql
-    - mysql-server
+  yum: 
+    name: httpd
+    state: latest
+
+- name: Install required software
+  yum: 
+    name: php
+    state: latest
+    
+- name: Install required software
+  yum: 
+    name: php-mysql
+    state: latest    
+
+- name: Install required software
+  yum: 
+    name: mysql-server
+    state: latest
