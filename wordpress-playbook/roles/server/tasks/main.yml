@@ -1,16 +1,16 @@
 ---
 # tasks file for server
-- name: Update apt cache
-  apt: update_cache=yes cache_valid_time=3600
-  become: yes
+
+- name: Update yum packages
+    yum:
+      name: "*"
+      state: latest
+      become: yes
 
 - name: Install required software
-  apt: name={{ item }} state=present
+  yum: name={{ item }} state=present
   become: yes
   with_items:
-    - apache2
+    - httpd
+    - php php-mysql
     - mysql-server
-    - php7.2-mysql
-    - php7.2
-    - libapache2-mod-php7.2
-    - python-mysqldb
