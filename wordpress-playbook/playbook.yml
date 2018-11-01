@@ -9,6 +9,5 @@
 
   roles:
     - server
-    - php
     - mysql
     - wordpress
