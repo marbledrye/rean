@@ -2,4 +2,4 @@
 # defaults file for mysql
 wp_mysql_db: WP_DB_NAME
 wp_mysql_user: WP_DB_USER
-wp_mysql_password: WP_PW
+wp_mysql_password: WP_DB_PW
