@@ -1,0 +1,4 @@
+ansible_user: ANSIBLEUSER
+ansible_ssh_pass: ANSIBLEPASSWORD
+ansible_become: True
+ansible_become_pass: ANSIBLEPASSWORD
