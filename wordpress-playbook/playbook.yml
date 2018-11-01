@@ -1,5 +1,6 @@
 - hosts: wordpress
   gather_facts: False
+  become: True
 
   roles:
     - server
