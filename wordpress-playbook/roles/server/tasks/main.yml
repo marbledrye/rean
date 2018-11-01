@@ -2,9 +2,9 @@
 # tasks file for server
 
 - name: Update yum packages
-    yum:
-      name: "*"
-      state: latest
+  yum:
+    name: "*"
+    state: latest
 
 - name: Install httpd
   yum: 
