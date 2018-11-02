@@ -1,0 +1,411 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Resources": {
+        "myVPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "EnableDnsSupport": "true",
+                "EnableDnsHostnames": "true",
+                "CidrBlock": "10.0.0.0/16"
+            }
+        },
+        "PublicSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "myVPC"
+                },
+                "CidrBlock": "10.0.0.0/24"
+            }
+        },
+        "InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "Properties": {}
+        },
+        "myVPCGatewayAttachment": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "myVPC"
+                },
+                "InternetGatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            }
+        },
+        "PublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "myVPC"
+                }
+            }
+        },
+        "PublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                },
+                "GatewayId": {
+                    "Ref": "InternetGateway"
+                }
+            },
+            "DependsOn": [
+                "myVPCGatewayAttachment"
+            ]
+        },
+        "PublicSubnetRTAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "PublicRouteTable"
+                },
+                "SubnetId": {
+                    "Ref": "PublicSubnet"
+                }
+            }
+        },
+        "AnsibleServerSG": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "myVPC"
+                },
+                "GroupDescription": "Allow access from SSH traffic",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": {
+                            "Ref": "SSHLocation"
+                        }
+                    }
+                ]
+            }
+        },
+        "WebServerSG": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "myVPC"
+                },
+                "GroupDescription": "Allow access from HTTP",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": {
+                            "Ref": "SSHLocation"
+                        }
+                    }
+                ]
+            }
+        },
+        "WordPressInstance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "InstanceType": "t2.micro",
+                "ImageId": "ami-0ff8a91507f77f867",
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "NetworkInterfaces": [
+                    {
+                        "GroupSet": [
+                            {
+                                "Ref": "WebServerSG"
+                            }
+                        ],
+                        "AssociatePublicIpAddress": "true",
+                        "DeviceIndex": "0",
+                        "DeleteOnTermination": "true",
+                        "SubnetId": {
+                            "Ref": "PublicSubnet"
+                        }
+                    }
+                ],
+                "Tags":[
+                   {
+                        "Key":"Name",
+                        "Value":"WordPressInstance"
+                   }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash -xe\n",
+                                "yum install -y aws-cfn-bootstrap\n",
+                                "/opt/aws/bin/cfn-init -v ",
+                                "           --stack ",
+                                {
+                                    "Ref": "AWS::StackName"
+                                },
+                                "           --resource WordPressInstance ",
+                                "           --configsets All",
+                                "           --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                "\n",
+                                "adduser ",
+                                {
+                                    "Ref": "AnsibleUserName"
+                                },
+                                "\n",
+                                "echo ",
+                                {
+                                    "Ref": "AnsiblePassword"
+                                },
+                                " | passwd ",
+                                {
+                                    "Ref": "AnsibleUserName"
+                                },
+                                " --stdin\n",
+                                "echo '",
+                                {
+                                    "Ref": "AnsibleUserName"
+                                },
+                                " ALL=(ALL) ALL' >> /etc/sudoers\n",
+                                "sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config\n",
+                                "service sshd restart\n",
+                                "# Signal the status from cfn-init\n",
+                                "/opt/aws/bin/cfn-signal -e $? ",
+                                "           --stack ",
+                                {
+                                  "Ref": "AWS::StackName"
+                                },
+                                "           --resource WordPressInstance ",
+                                "           --region ",
+                                {
+                                  "Ref": "AWS::Region"
+                                },
+                                "\n"
+                            ]
+                        ]
+                    }
+                }
+            },
+            "Metadata" : {
+                "AWS::CloudFormation::Init" : {
+                    "configSets": {
+                        "All": [
+                            "Config1"
+                        ]
+                    },
+                    "Config1" : {
+                        "commands" : {
+                            "cmd1" : {
+                                "command" : "yum update -y",
+                                "cwd" : "~"
+                            }
+                        }
+                    }
+                }
+            },
+            "DependsOn": [
+                "PublicRoute"
+            ]
+        },
+        "AnsibleInstance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "InstanceType": "t2.micro",
+                "ImageId": "ami-0ff8a91507f77f867",
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "NetworkInterfaces": [
+                    {
+                        "GroupSet": [
+                            {
+                                "Ref": "AnsibleServerSG"
+                            }
+                        ],
+                        "AssociatePublicIpAddress": "true",
+                        "DeviceIndex": "0",
+                        "DeleteOnTermination": "true",
+                        "SubnetId": {
+                            "Ref": "PublicSubnet"
+                        }
+                    }
+                ],
+                "Tags":[
+                   {
+                        "Key":"Name",
+                        "Value":"AnsibleInstance"
+                   }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash -xe\n",
+                                "yum install -y aws-cfn-bootstrap\n",
+                                "/opt/aws/bin/cfn-init -v ",
+                                "           --stack ",
+                                {
+                                    "Ref": "AWS::StackName"
+                                },
+                                "           --resource WordPressInstance ",
+                                "           --configsets All",
+                                "           --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                "\n",
+                                "yum-config-manager --enable epel\n",
+                                "yum install ansible -y\n",
+                                "yum install git -y\n",
+                                "yum install sshpass -y\n",
+                                "cd /tmp\n",
+                                "ssh-keygen -t rsa -N '' -f mykey\n",
+                                "sshpass -p ",
+                                {
+                                    "Ref": "AnsiblePassword"
+                                },
+                                " ssh-copy-id -i /tmp/mykey -o StrictHostKeyChecking=no ",
+                                {
+                                    "Ref": "AnsibleUserName"
+                                },
+                                "@",
+                                {
+                                    "Fn::GetAtt": [
+                                        "WordPressInstance",
+                                        "PublicIp"
+                                    ]
+                                },
+                                "\n",
+                                "git clone https://github.com/marbledrye/rean.git\n",
+                                "sed -i 's/WORDPRESSIP/",
+                                {
+                                    "Fn::GetAtt": [
+                                        "WordPressInstance",
+                                        "PublicIp"
+                                    ]
+                                },
+                                "/' rean/wordpress-playbook/hosts\n",
+                                "sed -i 's/ANSIBLEUSER/",{ "Ref": "AnsibleUserName" },"/' rean/wordpress-playbook/group_vars/wordpress\n",
+                                "sed -i 's/ANSIBLEPASSWORD/",{ "Ref": "AnsiblePassword" },"/' rean/wordpress-playbook/group_vars/wordpress\n",
+                                "sed -i 's/WP_DB_NAME/",{ "Ref": "WordPressDBName" },"/' rean/wordpress-playbook/roles/mysql/defaults/main.yml\n",
+                                "sed -i 's/WP_DB_USER/",{ "Ref": "WordPressDBUser" },"/' rean/wordpress-playbook/roles/mysql/defaults/main.yml\n",
+                                "sed -i 's/WP_DB_PW/",{ "Ref": "WordPressDBPw" },"/' rean/wordpress-playbook/roles/mysql/defaults/main.yml\n",
+                                "ansible-playbook rean/wordpress-playbook/playbook.yml -i rean/wordpress-playbook/hosts\n",
+                                "# Signal the status from cfn-init\n",
+                                "/opt/aws/bin/cfn-signal -e $? ",
+                                "           --stack ",
+                                {
+                                  "Ref": "AWS::StackName"
+                                },
+                                "           --resource WordPressInstance ",
+                                "           --region ",
+                                {
+                                  "Ref": "AWS::Region"
+                                },
+                                "\n"
+                            ]
+                        ]
+                    }
+                }
+            },
+            "Metadata" : {
+                "AWS::CloudFormation::Init" : {
+                    "configSets": {
+                        "All": [
+                            "Config1"
+                        ]
+                    },
+                    "Config1" : {
+                        "commands" : {
+                            "cmd1" : {
+                                "command" : "yum update -y",
+                                "cwd" : "~"
+                            }
+                        }
+                    }
+                }
+            },
+            "DependsOn": [
+                "WordPressInstance"
+            ]
+        }
+    },
+    "Parameters": {
+        "InstanceType": {
+            "Description": "Ansible and WebServer EC2 instance type",
+            "Type": "String",
+            "Default": "t2.micro",
+            "AllowedValues": [
+                "t2.micro",
+                "t2.small"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "KeyName": {
+            "Description": "Name of an EC2 KeyPair to enable SSH access to the instances.",
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "ConstraintDescription": "must be the name of an existing EC2 KeyPair."
+        },
+        "SSHLocation": {
+            "Description": " The IP address range that can be used to access the web server using SSH.",
+            "Type": "String",
+            "MinLength": "9",
+            "MaxLength": "18",
+            "Default": "0.0.0.0/0",
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+            "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+        },
+        "AnsibleUserName": {
+            "Description": "Username used by Ansible server to connect to WordPress server",
+            "Type": "String",
+        },
+        "AnsiblePassword": {
+            "Description": "Password used by Ansible user. Must meet default AWS Linux complexity",
+            "Type": "String",
+        },
+        "WordPressDBName": {
+            "Description": "Wordpress DB Name",
+            "Type": "String",
+        },
+        "WordPressDBUser": {
+            "Description": "Wordpress DB User",
+            "Type": "String",
+        },
+        "WordPressDBPw": {
+            "Description": "Wordpress DB Password",
+            "Type": "String",
+        },
+    },
+    "Outputs": {
+        "URL": {
+            "Value": {
+                "Fn::Join": [
+                    "",
+                    [
+                        "http://",
+                        {
+                            "Fn::GetAtt": [
+                                "WordPressInstance",
+                                "PublicIp"
+                            ]
+                        },
+                        "/wordpress"
+                    ]
+                ]
+            },
+            "Description": "Newly created wordpress URL"
+        }
+    }
+}
